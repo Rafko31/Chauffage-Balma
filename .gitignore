@@ -1,0 +1,8 @@
+# Ignorer les fichiers sensibles
+.env
+config/settings.py
+
+# Ignorer les dossiers de l'environnement virtuel
+venv/
+__pycache__/
+*.pyc

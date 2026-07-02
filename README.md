@@ -2,37 +2,50 @@
 
 Pulse IA est une plateforme SaaS permettant de mesurer, analyser et piloter l'adoption de l'Intelligence Artificielle au sein des organisations.
 
-## 🚀 Démarrage Rapide (Démonstration)
+## 🚀 Démarrage Rapide (Démonstration Docker)
 
-Le projet inclut une configuration Docker complète pour une reproductibilité immédiate.
+Le projet est conçu pour être lancé via Docker Compose pour une reproductibilité totale.
 
+### Prérequis
+- Docker et Docker Compose
+- `make` (recommandé)
+
+### Lancement de la démo
 ```bash
-# 1. Lancer l'infrastructure (DB + API + Seed de données fictives)
-docker-compose up --build
+# 1. Préparer l'environnement
+cp .env.example .env
 
-# 2. Accéder à l'API
-# L'API est disponible sur http://localhost:8000
-# La documentation Swagger est sur http://localhost:8000/docs
+# 2. Lancer la démo complète (DB + API + Migrations + Seed + Rapports)
+make demo
 ```
 
-La commande `docker-compose up` effectue automatiquement :
-- La montée des migrations Alembic.
-- Le seed des données pour l'organisation fictive **Manufacture Innovante Inc.**
-- La génération d'un rapport PDF de démonstration dans le conteneur.
+Une fois lancé :
+- L'API est disponible sur : http://localhost:8000
+- La documentation interactive (Swagger) : http://localhost:8000/docs
+- **Les rapports PDF générés se trouvent dans le dossier `./artifacts/`**
 
-## 🛠 Architecture et Sécurité
+## 🛠 Commandes de Développement (Makefile)
 
-- **Multi-tenant** : Isolation stricte par `org_id` extraite du JWT (pas de fuite inter-tenant).
-- **Pseudonymisation** : Séparation physique des identités et des réponses, hachage rotatif par campagne, et jittering temporel.
-- **Report-First** : Génération de PDF haute-fidélité via Playwright (Modèles Direction et CA).
-- **Immuabilité** : Snapshot complet de la méthodologie et des données lors de la publication des rapports.
+| Commande | Description |
+| :--- | :--- |
+| `make setup` | Installe les dépendances Python et Playwright (local) |
+| `make up` | Démarre l'infrastructure Docker en arrière-plan |
+| `make migrate` | Applique les migrations Alembic |
+| `make seed` | Remplit la base avec les données de démo (Idempotent) |
+| `make test-unit` | Exécute les tests unitaires rapides (SQLite) |
+| `make test-integration` | Exécute les tests sur une instance Postgres éphémère |
+| `make clean` | Nettoie les conteneurs, volumes et fichiers temporaires |
 
-## 🧪 Tests
+## 🧪 Tests et Intégrité
+
+Pour garantir la reproductibilité, les tests d'intégration démarrent leur propre instance PostgreSQL et vérifient l'alignement du schéma Alembic.
 
 ```bash
-# Exécuter la suite complète de tests (SQLite pour la rapidité)
-DATABASE_URL=sqlite:///./test.db python -m pytest src/pulse_ia/tests/
+make test-integration
 ```
 
-## 📄 Documentation de Sécurité
-Consultez [PRIVACY_RISKS.md](./PRIVACY_RISKS.md) pour le détail des mécanismes de protection des données.
+## 📄 Architecture et Sécurité
+- **Multi-tenant** : Isolation par `org_id` (JWT).
+- **Pseudonymisation** : Hachage SHA-256 et jittering temporel.
+- **Immuabilité** : Snapshot complet lors de la publication des rapports.
+- Consultez [PRIVACY_RISKS.md](./PRIVACY_RISKS.md) pour plus de détails.

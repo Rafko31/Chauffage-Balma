@@ -104,9 +104,14 @@ EMP005,eve@manufacture.ia,Production,Chef d'équipe
         participants = db.query(Participant).filter(Participant.org_id == org.id).all()
 
         # Mix of identified and anonymous answers
+        # Check participation first for idempotency
+        salt = settings.get_secret_key
         for p in participants:
-            is_anon = p.external_id in ["EMP001", "EMP003", "EMP005"]
-            try:
+            participant_hash = hashlib.sha256(f"{campaign.id}:{p.id}:{campaign.hash_salt}:{salt}".encode()).hexdigest()
+            existing = db.query(ParticipationStatus).filter_by(campaign_id=campaign.id, participant_hash=participant_hash).first()
+
+            if not existing:
+                is_anon = p.external_id in ["EMP001", "EMP003", "EMP005"]
                 SurveyService.submit_answer(
                     db,
                     org.id,
@@ -116,20 +121,21 @@ EMP005,eve@manufacture.ia,Production,Chef d'équipe
                     is_anonymous=is_anon,
                     consent_given=True
                 )
-            except Exception as e:
-                # Silently skip if already responded (idempotency)
-                if "already responded" not in str(e):
-                    raise e
 
         # 5. Use Cases
-        UseCaseService.create_use_case(
-            db, org.id, "Planification de la maintenance par IA",
-            "Utiliser l'IA pour prédire les pannes", UsageStatus.EN_EXPERIMENTATION, "Production"
-        )
-        UseCaseService.create_use_case(
-            db, org.id, "Analyse prédictive des ventes",
-            "Prédire les ventes du prochain trimestre", UsageStatus.IDEE, "Ventes"
-        )
+        uc1 = db.query(UseCase).filter_by(org_id=org.id, title="Planification de la maintenance par IA").first()
+        if not uc1:
+            UseCaseService.create_use_case(
+                db, org.id, "Planification de la maintenance par IA",
+                "Utiliser l'IA pour prédire les pannes", UsageStatus.EN_EXPERIMENTATION, "Production"
+            )
+
+        uc2 = db.query(UseCase).filter_by(org_id=org.id, title="Analyse prédictive des ventes").first()
+        if not uc2:
+            UseCaseService.create_use_case(
+                db, org.id, "Analyse prédictive des ventes",
+                "Prédire les ventes du prochain trimestre", UsageStatus.IDEE, "Ventes"
+            )
 
         db.commit()
 
@@ -146,8 +152,10 @@ EMP005,eve@manufacture.ia,Production,Chef d'équipe
             ReportService.publish_report(db, report.id, org.id, admin.id)
             db.refresh(report)
 
-        pdf_path_dir = "manufacture_innovante_direction_q1.pdf"
-        pdf_path_ca = "manufacture_innovante_ca_q1.pdf"
+        artifacts_dir = os.getenv("ARTIFACTS_DIR", "./artifacts")
+        os.makedirs(artifacts_dir, exist_ok=True)
+        pdf_path_dir = os.path.join(artifacts_dir, "manufacture_innovante_direction_q1.pdf")
+        pdf_path_ca = os.path.join(artifacts_dir, "manufacture_innovante_ca_q1.pdf")
 
         # Prepare data for rendering (convert model to dict with relationships)
         report_data = {
@@ -158,17 +166,28 @@ EMP005,eve@manufacture.ia,Production,Chef d'équipe
             "report_version": report.report_version
         }
 
-        run_export_sync(report_data, pdf_path_dir, template_name="direction_report")
-        run_export_sync(report_data, pdf_path_ca, template_name="ca_report")
-
-        print(f"Demo data seeded and real PDF generated at {pdf_path}")
+        try:
+            run_export_sync(report_data, pdf_path_dir, template_name="direction_report")
+            run_export_sync(report_data, pdf_path_ca, template_name="ca_report")
+            print(f"Demo data seeded successfully.")
+            print(f"Rapport Direction généré : {pdf_path_dir}")
+            print(f"Rapport CA généré : {pdf_path_ca}")
+        except Exception as e:
+            print(f"Warning: PDF generation failed (likely missing playwright): {e}")
+            print(f"Demo data seeded successfully (without PDFs).")
 
     finally:
         db.close()
 
 if __name__ == "__main__":
-    # Create tables first (normally handled by migrations, but for MVP demo...)
-    from src.pulse_ia.models.base import Base
-    from src.pulse_ia.core.db import engine
-    Base.metadata.create_all(bind=engine)
-    seed_demo_data()
+    import sys
+    import hashlib
+    from src.pulse_ia.models.base import ParticipationStatus
+    from src.pulse_ia.core.config import settings
+    try:
+        seed_demo_data()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Error seeding demo data: {e}", file=sys.stderr)
+        sys.exit(1)

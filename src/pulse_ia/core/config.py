@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     SQLALCHEMY_DATABASE_URI: str = os.getenv("DATABASE_URL", f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}/{POSTGRES_DB}")
 
     ANONYMITY_THRESHOLD_DEFAULT: int = 5
+    ARTIFACTS_DIR: str = os.getenv("ARTIFACTS_DIR", "./artifacts")
 
     @property
     def get_secret_key(self) -> str:

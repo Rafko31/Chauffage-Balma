@@ -11,11 +11,14 @@ def test_generate_real_pdf():
             "results": {
                 "maturity_avg": 0.45,
                 "sentiment_avg": 0.88,
-                "activation_avg": 0.32
+                "activation_avg": 0.32,
+                "adoption_distribution": {"Exposition": 1.0},
+                "count": 10
             },
             "recommendations": [
                 {"title": "Rec 1", "target": "RH", "content": "Contenu 1"}
-            ]
+            ],
+            "decisions": []
         }
     }
     output_path = "test_report.pdf"

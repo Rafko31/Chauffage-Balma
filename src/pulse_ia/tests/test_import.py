@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.orm import Session
 from src.pulse_ia.models.base import Organization, Participant
 from src.pulse_ia.services.participant import ParticipantService
-from src.pulse_ia.tests.test_security import db_session, engine # reuse engine and session setup
+from src.pulse_ia.tests.test_security import db_session, engine
 
 def test_import_participants_idempotent(db_session: Session):
     org = Organization(name="Test Org")

@@ -1,6 +1,8 @@
-# Analyse des Risques Résiduels de Confidentialité
+# Analyse des Risques Résiduels de Confidentialité et Nature de la Protection
 
-Bien que Pulse IA implémente une séparation logique stricte et des mécanismes avancés d'anonymisation, certains risques résiduels subsistent.
+**Important :** Pulse IA utilise une architecture de **pseudonymisation** avancée et non un anonymat absolu. Bien que l'identité soit techniquement séparée des réponses, un risque résiduel de ré-identification par croisement de données existe toujours dans les systèmes de reporting.
+
+## 1. Risque de Ré-identification par Croisement (Jigsaw Effect)
 
 ## 1. Risque de Ré-identification par Croisement (Jigsaw Effect)
 **Description** : Un utilisateur disposant d'accès aux rapports pourrait, en croisant plusieurs filtres (ex: Direction RH + Localisation Montréal + Ancienneté > 10 ans), isoler un individu si la population résultante est très faible.

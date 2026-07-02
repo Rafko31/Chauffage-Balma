@@ -19,12 +19,13 @@ def test_report_workflow(db_session: Session):
 
     version = AssessmentVersion(
         template_id=template.id, version="v1",
-        structure={}, scoring_rules={"maturity": {}, "sentiment": {}, "activation": {}}
+        structure={}, scoring_rules={"maturity": {}, "sentiment": {}, "activation": {}},
+        adoption_rules={}, recommendation_library={}
     )
     db_session.add(version)
     db_session.commit()
 
-    campaign = Campaign(org_id=org.id, assessment_version_id=version.id, title="Report Campaign", start_date=datetime.now(UTC))
+    campaign = Campaign(org_id=org.id, assessment_version_id=version.id, title="Report Campaign", start_date=datetime.now(UTC), hash_salt="salt")
     db_session.add(campaign)
     db_session.commit()
 
@@ -34,7 +35,8 @@ def test_report_workflow(db_session: Session):
             campaign_id=campaign.id,
             org_id=org.id,
             computed_scores={"maturity": 0.3, "sentiment": 0.5, "activation": 0.2},
-            answers={"adoption_state": "Exploration"}
+                answers={"q1": 1},
+                adoption_state="Exploration"
         )
         db_session.add(ans)
     db_session.commit()

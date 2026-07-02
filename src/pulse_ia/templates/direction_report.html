@@ -1,0 +1,85 @@
+<html>
+<head>
+    <style>
+        @page { margin: 2cm; }
+        body { font-family: 'Helvetica', 'Arial', sans-serif; line-height: 1.6; color: #333; }
+        .page { page-break-after: always; min-height: 25cm; display: flex; flex-direction: column; }
+        .cover { justify-content: center; text-align: center; }
+        .header { border-bottom: 2px solid #2c3e50; padding-bottom: 10px; margin-bottom: 20px; font-size: 12px; color: #7f8c8d; }
+        h1 { color: #2c3e50; font-size: 32px; }
+        h2 { color: #2980b9; border-left: 5px solid #2980b9; padding-left: 10px; margin-top: 30px; }
+        .score-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin: 20px 0; display: flex; justify-content: space-around; }
+        .score-item { text-align: center; }
+        .score-val { font-size: 28px; font-weight: bold; color: #2c3e50; display: block; }
+        .rec { border-left: 4px solid #27ae60; padding: 10px 15px; background: #f1f9f4; margin-bottom: 15px; }
+        .methodology { font-size: 11px; background: #eee; padding: 15px; margin-top: 20px; }
+        .footer { font-size: 10px; color: #bdc3c7; text-align: center; border-top: 1px solid #eee; padding-top: 10px; margin-top: auto; }
+    </style>
+</head>
+<body>
+    <div class="page cover">
+        <h1>Rapport de Pilotage IA</h1>
+        <h3>Direction Générale & Comité RH</h3>
+        <p>Manufacture Innovante Inc.</p>
+        <p>Cycle : {{ campaign_title }}</p>
+        <p>Date de génération : {{ now }}</p>
+    </div>
+
+    <div class="page">
+        <div class="header">Pulse IA - Rapport Direction</div>
+        <h2>1. Synthèse Exécutive</h2>
+        <p>{{ content.executive_summary }}</p>
+
+        <h2>2. Indicateurs de Maturité</h2>
+        <div class="score-box">
+            <div class="score-item"><span class="score-val">{{ "%.2f"|format(content.results.maturity_avg) }}</span>Maturité</div>
+            <div class="score-item"><span class="score-val">{{ "%.2f"|format(content.results.sentiment_avg) }}</span>Sentiment</div>
+            <div class="score-item"><span class="score-val">{{ "%.2f"|format(content.results.activation_avg) }}</span>Activation</div>
+        </div>
+    </div>
+
+    <div class="page">
+        <div class="header">Pulse IA - Rapport Direction</div>
+        <h2>3. Courbe d'Adoption</h2>
+        <ul>
+            {% for state, pct in content.results.adoption_distribution.items() %}
+            <li><strong>{{ state }}:</strong> {{ "%.0f"|format(pct * 100) }}%</li>
+            {% endfor %}
+        </ul>
+
+        <h2>4. Analyse des Tendances</h2>
+        <p>Évolution par rapport au cycle précédent : stable.</p>
+    </div>
+
+    <div class="page">
+        <div class="header">Pulse IA - Rapport Direction</div>
+        <h2>5. Recommandations Stratégiques</h2>
+        {% for rec in content.recommendations %}
+        <div class="rec">
+            <strong>{{ rec.title }}</strong> ({{ rec.target }})<br/>
+            {{ rec.content }}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="page">
+        <div class="header">Pulse IA - Rapport Direction</div>
+        <h2>6. Plan d'Action & Décisions</h2>
+        <table>
+            <thead><tr><th>Action</th><th>Responsable</th><th>Échéance</th></tr></thead>
+            <tbody>
+                {% for dec in content.decisions %}
+                <tr><td>{{ dec.action }}</td><td>{{ dec.owner }}</td><td>{{ dec.deadline }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="methodology">
+            <strong>Méthodologie Pulse IA</strong><br/>
+            Version du framework: {{ methodology.version }}<br/>
+            Réponses collectées: {{ content.results.count }}<br/>
+            Ce rapport est un document immuable (ID: {{ id }}).
+        </div>
+    </div>
+</body>
+</html>

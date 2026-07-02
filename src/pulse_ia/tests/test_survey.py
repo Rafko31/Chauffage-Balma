@@ -4,7 +4,7 @@ from sqlalchemy import select
 from src.pulse_ia.models.base import Organization, Participant, Campaign, AnonymousAnswer, IdentifiedAnswer, ParticipationStatus, FollowUpRequest, AssessmentTemplate, AssessmentVersion
 from src.pulse_ia.services.survey import SurveyService
 from src.pulse_ia.tests.test_security import db_session, engine
-from datetime import datetime
+from datetime import datetime, UTC
 
 def test_anonymous_submission_decoupled(db_session: Session):
     org = Organization(name="Survey Org")
@@ -22,12 +22,14 @@ def test_anonymous_submission_decoupled(db_session: Session):
         template_id=template.id,
         version="v1",
         structure={},
-        scoring_rules={"maturity": {"weights": {"q1": 1.0}}, "sentiment": {}, "activation": {}}
+        scoring_rules={"maturity": {"weights": {"q1": 1.0}}, "sentiment": {}, "activation": {}},
+        adoption_rules={},
+        recommendation_library={}
     )
     db_session.add(version)
     db_session.commit()
 
-    campaign = Campaign(org_id=org.id, assessment_version_id=version.id, title="Test Campaign", start_date=datetime.utcnow())
+    campaign = Campaign(org_id=org.id, assessment_version_id=version.id, title="Test Campaign", start_date=datetime.now(UTC), hash_salt="salt")
     db_session.add(campaign)
     db_session.commit()
 
@@ -37,6 +39,7 @@ def test_anonymous_submission_decoupled(db_session: Session):
     # Submit anonymously
     SurveyService.submit_answer(
         db_session,
+            org.id,
         campaign.id,
         participant.id,
         answers,

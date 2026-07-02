@@ -1,85 +1,96 @@
-import random
-import hashlib
-from datetime import datetime, timedelta, UTC
+from typing import Dict, Any, List
 from sqlalchemy.orm import Session
-from src.pulse_ia.models.base import AnonymousAnswer, IdentifiedAnswer, ParticipationStatus, FollowUpRequest, Participant, Consent, Campaign, AssessmentVersion
-from src.pulse_ia.core.config import settings
+from src.pulse_ia.models.base import Campaign, AssessmentVersion, IdentifiedAnswer, AnonymousAnswer, ParticipationStatus, Consent, Report, UseCase
+import hashlib
+import random
+from datetime import datetime, timedelta, UTC
 
-class SurveyService:
+class BaseService:
+    @staticmethod
+    def validate_org(obj: Any, org_id: int):
+        if obj and hasattr(obj, "org_id") and obj.org_id != org_id:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=403, detail="Access denied to this resource (cross-tenant violation)")
+
+class SurveyService(BaseService):
+    @staticmethod
+    def calculate_adoption_state(answers: Dict[str, Any], rules: Dict[str, Any]) -> str:
+        """Calcul déterministe de l'état d'adoption."""
+        # rules format: {"states": {"Exposition": {"q1": 1, "q2": 0}, ...}}
+        # Simplified logic for MVP: match answers with rule thresholds
+        for state, criteria in rules.get("states", {}).items():
+            match = True
+            for q_id, threshold in criteria.items():
+                if answers.get(q_id, 0) < threshold:
+                    match = False
+                    break
+            if match:
+                return state
+        return "Exposition"
+
     @staticmethod
     def submit_answer(
         db: Session,
+        org_id: int,
         campaign_id: int,
         participant_id: int,
-        answers: dict,
+        answers: Dict[str, Any],
         is_anonymous: bool,
         consent_given: bool,
         follow_up: dict = None
     ):
-        if not consent_given:
-            raise ValueError("Consent is required to submit answers.")
-
-        participant = db.get(Participant, participant_id)
-        if not participant:
-            raise ValueError("Participant not found")
-
-        # 1. Register participation (WHO) - decoupled via hash
-        # In a real system, the salt would be campaign-specific and stored securely
-        salt = settings.SECRET_KEY
-        participant_hash = hashlib.sha256(f"{campaign_id}:{participant_id}:{salt}".encode()).hexdigest()
-
-        participation = ParticipationStatus(
-            campaign_id=campaign_id,
-            participant_hash=participant_hash
-        )
-        db.add(participation)
-
-        # 1.5 Register Consent
-        consent = Consent(
-            participant_id=participant_id,
-            campaign_id=campaign_id,
-            consent_text_version="v1.0", # Hardcoded for MVP
-            mode="anonymous" if is_anonymous else "identified"
-        )
-        db.add(consent)
-
-        # 2. Store answers (WHAT)
         campaign = db.get(Campaign, campaign_id)
-        assessment_version = db.get(AssessmentVersion, campaign.assessment_version_id)
+        if not campaign:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        SurveyService.validate_org(campaign, org_id)
 
-        scores = SurveyService.compute_scores(answers, assessment_version.scoring_rules)
+        version = db.get(AssessmentVersion, campaign.assessment_version_id)
 
+        # Calculate Adoption State & Scores
+        scores = SurveyService.compute_scores(answers, version.scoring_rules)
+        adoption_state = SurveyService.calculate_adoption_state(answers, version.adoption_rules)
+
+        # 1. Check Participation
+        participant_hash = hashlib.sha256(f"{campaign_id}:{participant_id}:{campaign.hash_salt}".encode()).hexdigest()
+        existing_status = db.query(ParticipationStatus).filter_by(
+            campaign_id=campaign_id, participant_hash=participant_hash
+        ).first()
+        if existing_status:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Participant already responded to this campaign")
+
+        # 2. Record Participation (Pseudo)
+        status = ParticipationStatus(campaign_id=campaign_id, participant_hash=participant_hash)
+        db.add(status)
+
+        # 3. Store Answer
         if is_anonymous:
-            # Jittering: add/subtract up to 12 hours to prevent temporal correlation
-            jitter = timedelta(seconds=random.randint(-43200, 43200))
+            # Fetch metadata from participant BEFORE decoupling
+            from src.pulse_ia.models.base import Participant
+            participant = db.get(Participant, participant_id)
+            SurveyService.validate_org(participant, org_id)
 
-            # Metadata only, no link to participant_id
+            jitter = timedelta(seconds=random.randint(-43200, 43200))
             ans = AnonymousAnswer(
-                campaign_id=campaign_id,
-                org_id=participant.org_id,
-                population=participant.population,
-                direction=participant.direction,
-                service=participant.service,
-                equipe=participant.equipe,
-                localisation=participant.localisation,
-                answers=answers,
-                computed_scores=scores,
+                org_id=org_id, campaign_id=campaign_id,
+                population=participant.population, direction=participant.direction,
+                answers=answers, computed_scores=scores, adoption_state=adoption_state,
                 created_at=datetime.now(UTC) + jitter
             )
         else:
             ans = IdentifiedAnswer(
-                campaign_id=campaign_id,
-                participant_id=participant_id,
-                answers=answers,
-                computed_scores=scores
+                org_id=org_id, campaign_id=campaign_id, participant_id=participant_id,
+                answers=answers, computed_scores=scores, adoption_state=adoption_state
             )
         db.add(ans)
 
-        # 3. Follow-up (Isolated)
+        # 4. Follow-up (Isolated)
         if follow_up and follow_up.get("requested"):
+            from src.pulse_ia.models.base import FollowUpRequest
             fu = FollowUpRequest(
                 campaign_id=campaign_id,
-                org_id=participant.org_id,
+                org_id=org_id,
                 contact_info=follow_up.get("contact_info"),
                 message=follow_up.get("message"),
                 is_anonymous_respondent=is_anonymous
@@ -91,22 +102,10 @@ class SurveyService:
 
     @staticmethod
     def compute_scores(answers: dict, scoring_rules: dict) -> dict:
-        """Calcul déterministe des scores basés sur les règles de la version de l'évaluation."""
         scores = {"maturity": 0.0, "sentiment": 0.0, "activation": 0.0}
-
-        for dimension in scores.keys():
-            rules = scoring_rules.get(dimension, {})
-            dim_score = 0.0
-            total_weight = 0.0
-
-            for q_id, weight in rules.get("weights", {}).items():
-                val = answers.get(q_id, 0)
-                # Map value if needed (e.g. 1-5 scale to 0.0-1.0)
-                # For MVP, assume normalized values in answers
-                dim_score += float(val) * weight
-                total_weight += weight
-
-            if total_weight > 0:
-                scores[dimension] = dim_score / total_weight
-
+        for dim in scores.keys():
+            weights = scoring_rules.get(dim, {}).get("weights", {})
+            total_w = sum(weights.values())
+            if total_w > 0:
+                scores[dim] = sum(float(answers.get(q, 0)) * w for q, w in weights.items()) / total_w
         return scores

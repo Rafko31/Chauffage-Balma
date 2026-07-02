@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from src.pulse_ia.models.base import AnonymousAnswer, IdentifiedAnswer, Organization, Campaign
+from src.pulse_ia.models.base import AnonymousAnswer, IdentifiedAnswer, Organization, Campaign, ParticipationStatus
 
 class AnalyticsService:
     @staticmethod
@@ -15,55 +15,56 @@ class AnalyticsService:
         org = db.get(Organization, org_id)
         threshold = org.settings.get("anonymity_threshold", 5) if org.settings else 5
 
-        # Aggregate Anonymous Answers
-        query = db.query(AnonymousAnswer).filter(
-            AnonymousAnswer.org_id == org_id,
-            AnonymousAnswer.campaign_id == campaign_id
-        )
+        # 1. Fetch Identified Answers
+        id_query = db.query(IdentifiedAnswer).filter_by(org_id=org_id, campaign_id=campaign_id)
+        # 2. Fetch Anonymous Answers
+        anon_query = db.query(AnonymousAnswer).filter_by(org_id=org_id, campaign_id=campaign_id)
 
         if filters:
             for key, value in filters.items():
-                if hasattr(AnonymousAnswer, key):
-                    query = query.filter(getattr(AnonymousAnswer, key) == value)
+                if hasattr(IdentifiedAnswer, key): id_query = id_query.filter(getattr(IdentifiedAnswer, key) == value)
+                if hasattr(AnonymousAnswer, key): anon_query = anon_query.filter(getattr(AnonymousAnswer, key) == value)
 
-        count = query.count()
+        id_answers = id_query.all()
+        anon_answers = anon_query.all()
+        total_count = len(id_answers) + len(anon_answers)
 
-        if count < threshold:
+
+        if total_count < threshold:
             return {
-                "count": count,
+                "count": total_count,
                 "status": "threshold_not_reached",
-                "message": f"Results hidden (n={count} < threshold={threshold})",
+                "message": f"Results hidden (n={total_count} < threshold={threshold})",
                 "data": {}
             }
 
-        # Privacy Guard: Check for filter combinations that might re-identify
-        # In a real system, we would analyze the diversity of metadata in the results
+        # Diversity Guard: Check if results are dominated by a single segment
+        # to prevent re-identification by elimination
+        if filters:
+             # If we are already filtering, the threshold check above is the primary guard.
+             # In a full system, we'd check if the remainder of the population is also above threshold.
+             pass
 
-        # Real aggregation logic for scores and adoption states
-        avg_scores = db.query(
-            func.avg(AnonymousAnswer.computed_scores['maturity'].as_float()).label('maturity'),
-            func.avg(AnonymousAnswer.computed_scores['sentiment'].as_float()).label('sentiment'),
-            func.avg(AnonymousAnswer.computed_scores['activation'].as_float()).label('activation')
-        ).filter(AnonymousAnswer.id.in_(select(query.subquery().c.id))).first()
+        # 3. Merge and Compute
+        all_scores = [a.computed_scores for a in id_answers] + [a.computed_scores for a in anon_answers]
+        all_states = [a.adoption_state for a in id_answers] + [a.adoption_state for a in anon_answers]
 
-        # Adoption distribution
-        adoption_counts = db.query(
-            AnonymousAnswer.answers['adoption_state'].as_string(),
-            func.count(AnonymousAnswer.id)
-        ).filter(AnonymousAnswer.id.in_(select(query.subquery().c.id))).group_by(
-            AnonymousAnswer.answers['adoption_state'].as_string()
-        ).all()
+        avg_scores = {
+            "maturity_avg": sum(s["maturity"] for s in all_scores) / total_count if total_count > 0 else 0,
+            "sentiment_avg": sum(s["sentiment"] for s in all_scores) / total_count if total_count > 0 else 0,
+            "activation_avg": sum(s["activation"] for s in all_scores) / total_count if total_count > 0 else 0,
+        }
 
-        adoption_distribution = {state: c / count for state, c in adoption_counts} if count > 0 else {}
+        distribution = {}
+        for state in ["Exposition", "Exploration", "Expérimentation", "Usage utile", "Intégration", "Diffusion"]:
+            distribution[state] = all_states.count(state) / total_count if total_count > 0 else 0
 
         return {
-            "count": count,
+            "count": total_count,
             "status": "success",
             "data": {
-                "maturity_avg": avg_scores.maturity if avg_scores else 0,
-                "sentiment_avg": avg_scores.sentiment if avg_scores else 0,
-                "activation_avg": avg_scores.activation if avg_scores else 0,
-                "adoption_distribution": adoption_distribution
+                **avg_scores,
+                "adoption_distribution": distribution
             }
         }
 

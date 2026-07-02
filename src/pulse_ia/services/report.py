@@ -1,7 +1,7 @@
 from datetime import datetime, UTC
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
-from src.pulse_ia.models.base import Report, ReportStatus, Campaign, Organization
+from src.pulse_ia.models.base import Report, ReportStatus, Campaign, Organization, AssessmentVersion
 from src.pulse_ia.services.analytics import AnalyticsService
 
 class RecommendationService:
@@ -35,7 +35,16 @@ class ReportService:
         # 2. Get recommendations
         recommendations = RecommendationService.get_recommendations(results["data"])
 
-        # 3. Create content snapshot
+        # 3. Create methodology snapshot
+        assessment_version = db.get(AssessmentVersion, campaign.assessment_version_id)
+        methodology = {
+            "version": assessment_version.version,
+            "scoring_rules": assessment_version.scoring_rules,
+            "adoption_rules": assessment_version.adoption_rules,
+            "recommendation_library": assessment_version.recommendation_library
+        }
+
+        # 4. Create content snapshot
         content = {
             "results": results["data"],
             "recommendations": recommendations,
@@ -49,7 +58,8 @@ class ReportService:
             assessment_version_id=campaign.assessment_version_id,
             status=ReportStatus.BROUILLON,
             content=content,
-            version="1.0"
+            methodology_snapshot=methodology,
+            report_version="1.0"
         )
         db.add(report)
         db.commit()

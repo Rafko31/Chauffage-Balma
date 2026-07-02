@@ -38,8 +38,6 @@ class ParticipantService:
                     "direction": row.get(mapping.get('direction')) if mapping.get('direction') else None,
                     "service": row.get(mapping.get('service')) if mapping.get('service') else None,
                     "equipe": row.get(mapping.get('equipe')) if mapping.get('equipe') else None,
-                    "gestionnaire_id": row.get(mapping.get('gestionnaire_id')) if mapping.get('gestionnaire_id') else None,
-                    "segment_client": row.get(mapping.get('segment_client')) if mapping.get('segment_client') else None,
                     "localisation": row.get(mapping.get('localisation')) if mapping.get('localisation') else None,
                 }
 

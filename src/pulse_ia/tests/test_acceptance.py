@@ -27,14 +27,16 @@ def test_full_business_workflow(db_session: Session):
             "maturity": {"weights": {"q1": 1.0}},
             "sentiment": {"weights": {"q2": 1.0}},
             "activation": {"weights": {"q3": 1.0}}
-        }
+        },
+        adoption_rules={},
+        recommendation_library={}
     )
     db_session.add(version)
     db_session.commit()
 
     # 3. Setup Campaigns
-    campaign = Campaign(org_id=org_ia.id, assessment_version_id=version.id, title="Q1 Survey", start_date=datetime.now(UTC))
-    comp_campaign = Campaign(org_id=org_competitor.id, assessment_version_id=version.id, title="Spying Campaign", start_date=datetime.now(UTC))
+    campaign = Campaign(org_id=org_ia.id, assessment_version_id=version.id, title="Q1 Survey", start_date=datetime.now(UTC), hash_salt="s1")
+    comp_campaign = Campaign(org_id=org_competitor.id, assessment_version_id=version.id, title="Spying Campaign", start_date=datetime.now(UTC), hash_salt="s2")
     db_session.add_all([campaign, comp_campaign])
     db_session.commit()
 

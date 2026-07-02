@@ -62,6 +62,7 @@ class AssessmentTemplate(Base):
     __tablename__ = "assessment_templates"
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[Optional[str]] = mapped_column(String(1024))
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
 
 class AssessmentVersion(Base):

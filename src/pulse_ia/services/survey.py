@@ -1,6 +1,7 @@
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from src.pulse_ia.models.base import Campaign, AssessmentVersion, IdentifiedAnswer, AnonymousAnswer, ParticipationStatus, Consent, Report, UseCase
+from src.pulse_ia.core.config import settings
 import hashlib
 import random
 from datetime import datetime, timedelta, UTC
@@ -52,7 +53,8 @@ class SurveyService(BaseService):
         adoption_state = SurveyService.calculate_adoption_state(answers, version.adoption_rules)
 
         # 1. Check Participation
-        participant_hash = hashlib.sha256(f"{campaign_id}:{participant_id}:{campaign.hash_salt}".encode()).hexdigest()
+        salt = settings.get_secret_key
+        participant_hash = hashlib.sha256(f"{campaign_id}:{participant_id}:{campaign.hash_salt}:{salt}".encode()).hexdigest()
         existing_status = db.query(ParticipationStatus).filter_by(
             campaign_id=campaign_id, participant_hash=participant_hash
         ).first()

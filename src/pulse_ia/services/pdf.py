@@ -11,10 +11,14 @@ class PDFService:
         env = Environment(loader=FileSystemLoader(template_dir))
         template = env.get_template(f"{template_name}.html")
 
+        # Avoid duplicate keyword arguments
+        render_data = report_data.copy()
+        if "methodology" not in render_data:
+             render_data["methodology"] = report_data.get("methodology_snapshot", {"version": "Unknown"})
+
         return template.render(
-            **report_data,
-            now=datetime.now().strftime('%d/%m/%Y %H:%M'),
-            methodology=report_data.get("methodology_snapshot", {"version": "Unknown"})
+            **render_data,
+            now=datetime.now().strftime('%d/%m/%Y %H:%M')
         )
 
     @staticmethod

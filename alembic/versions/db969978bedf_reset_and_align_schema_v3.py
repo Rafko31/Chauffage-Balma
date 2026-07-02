@@ -1,8 +1,8 @@
-"""Initial naming convention
+"""Reset and align schema v3
 
-Revision ID: 356e9fbd216d
+Revision ID: db969978bedf
 Revises:
-Create Date: 2026-07-02 13:33:45.295823
+Create Date: 2026-07-02 15:50:33.218463
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '356e9fbd216d'
+revision: str = 'db969978bedf'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -43,6 +43,8 @@ def upgrade() -> None:
     sa.Column('version', sa.String(length=50), nullable=False),
     sa.Column('structure', sa.JSON(), nullable=False),
     sa.Column('scoring_rules', sa.JSON(), nullable=False),
+    sa.Column('adoption_rules', sa.JSON(), nullable=False),
+    sa.Column('recommendation_library', sa.JSON(), nullable=False),
     sa.Column('is_frozen', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['template_id'], ['assessment_templates.id'], name=op.f('fk_assessment_versions_template_id_assessment_templates')),
@@ -57,11 +59,8 @@ def upgrade() -> None:
     sa.Column('direction', sa.String(length=255), nullable=True),
     sa.Column('service', sa.String(length=255), nullable=True),
     sa.Column('equipe', sa.String(length=255), nullable=True),
-    sa.Column('gestionnaire_id', sa.String(length=255), nullable=True),
-    sa.Column('segment_client', sa.String(length=255), nullable=True),
     sa.Column('localisation', sa.String(length=255), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['org_id'], ['organizations.id'], name=op.f('fk_participants_org_id_organizations')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_participants')),
     sa.UniqueConstraint('org_id', 'external_id', name='uq_participant_org_external_id')
@@ -82,6 +81,9 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['org_id'], ['organizations.id'], name=op.f('fk_use_cases_org_id_organizations')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_use_cases'))
     )
+    with op.batch_alter_table('use_cases', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_use_cases_org_id'), ['org_id'], unique=False)
+
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('org_id', sa.Integer(), nullable=False),
@@ -93,14 +95,18 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_users')),
     sa.UniqueConstraint('email', name=op.f('uq_users_email'))
     )
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_users_org_id'), ['org_id'], unique=False)
+
     op.create_table('campaigns',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('org_id', sa.Integer(), nullable=False),
     sa.Column('assessment_version_id', sa.Integer(), nullable=False),
     sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
     sa.Column('start_date', sa.DateTime(), nullable=False),
     sa.Column('end_date', sa.DateTime(), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('hash_salt', sa.String(length=255), nullable=False),
     sa.ForeignKeyConstraint(['assessment_version_id'], ['assessment_versions.id'], name=op.f('fk_campaigns_assessment_version_id_assessment_versions')),
     sa.ForeignKeyConstraint(['org_id'], ['organizations.id'], name=op.f('fk_campaigns_org_id_organizations')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_campaigns'))
@@ -110,20 +116,22 @@ def upgrade() -> None:
 
     op.create_table('anonymous_answers',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('campaign_id', sa.Integer(), nullable=False),
     sa.Column('org_id', sa.Integer(), nullable=False),
+    sa.Column('campaign_id', sa.Integer(), nullable=False),
     sa.Column('population', sa.String(length=255), nullable=True),
     sa.Column('direction', sa.String(length=255), nullable=True),
-    sa.Column('service', sa.String(length=255), nullable=True),
-    sa.Column('equipe', sa.String(length=255), nullable=True),
-    sa.Column('localisation', sa.String(length=255), nullable=True),
     sa.Column('answers', sa.JSON(), nullable=False),
     sa.Column('computed_scores', sa.JSON(), nullable=False),
+    sa.Column('adoption_state', sa.String(length=50), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['campaign_id'], ['campaigns.id'], name=op.f('fk_anonymous_answers_campaign_id_campaigns')),
     sa.ForeignKeyConstraint(['org_id'], ['organizations.id'], name=op.f('fk_anonymous_answers_org_id_organizations')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_anonymous_answers'))
     )
+    with op.batch_alter_table('anonymous_answers', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_anonymous_answers_campaign_id'), ['campaign_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_anonymous_answers_org_id'), ['org_id'], unique=False)
+
     op.create_table('consents',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('participant_id', sa.Integer(), nullable=False),
@@ -154,15 +162,24 @@ def upgrade() -> None:
     )
     op.create_table('identified_answers',
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('org_id', sa.Integer(), nullable=False),
     sa.Column('campaign_id', sa.Integer(), nullable=False),
     sa.Column('participant_id', sa.Integer(), nullable=False),
     sa.Column('answers', sa.JSON(), nullable=False),
     sa.Column('computed_scores', sa.JSON(), nullable=False),
+    sa.Column('adoption_state', sa.String(length=50), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['campaign_id'], ['campaigns.id'], name=op.f('fk_identified_answers_campaign_id_campaigns')),
+    sa.ForeignKeyConstraint(['org_id'], ['organizations.id'], name=op.f('fk_identified_answers_org_id_organizations')),
     sa.ForeignKeyConstraint(['participant_id'], ['participants.id'], name=op.f('fk_identified_answers_participant_id_participants')),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_identified_answers'))
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_identified_answers')),
+    sa.UniqueConstraint('campaign_id', 'participant_id', name='uq_identified_answer')
     )
+    with op.batch_alter_table('identified_answers', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_identified_answers_campaign_id'), ['campaign_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_identified_answers_org_id'), ['org_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_identified_answers_participant_id'), ['participant_id'], unique=False)
+
     op.create_table('participation_statuses',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('campaign_id', sa.Integer(), nullable=False),
@@ -180,12 +197,13 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('org_id', sa.Integer(), nullable=False),
     sa.Column('campaign_id', sa.Integer(), nullable=False),
-    sa.Column('status', sa.Enum('BROUILLON', 'EN_REVISION', 'APPROUVE', 'PUBLIE', name='reportstatus'), nullable=False),
     sa.Column('assessment_version_id', sa.Integer(), nullable=False),
+    sa.Column('status', sa.Enum('BROUILLON', 'EN_REVISION', 'APPROUVE', 'PUBLIE', name='reportstatus'), nullable=False),
     sa.Column('content', sa.JSON(), nullable=False),
-    sa.Column('version', sa.String(length=50), nullable=False),
+    sa.Column('methodology_snapshot', sa.JSON(), nullable=False),
     sa.Column('approved_by_id', sa.Integer(), nullable=True),
     sa.Column('published_at', sa.DateTime(), nullable=True),
+    sa.Column('report_version', sa.String(length=50), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['approved_by_id'], ['users.id'], name=op.f('fk_reports_approved_by_id_users')),
@@ -194,18 +212,31 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['org_id'], ['organizations.id'], name=op.f('fk_reports_org_id_organizations')),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_reports'))
     )
+    with op.batch_alter_table('reports', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_reports_campaign_id'), ['campaign_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_reports_org_id'), ['org_id'], unique=False)
+
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    with op.batch_alter_table('reports', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_reports_org_id'))
+        batch_op.drop_index(batch_op.f('ix_reports_campaign_id'))
+
     op.drop_table('reports')
     with op.batch_alter_table('participation_statuses', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_participation_statuses_participant_hash'))
         batch_op.drop_index(batch_op.f('ix_participation_statuses_campaign_id'))
 
     op.drop_table('participation_statuses')
+    with op.batch_alter_table('identified_answers', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_identified_answers_participant_id'))
+        batch_op.drop_index(batch_op.f('ix_identified_answers_org_id'))
+        batch_op.drop_index(batch_op.f('ix_identified_answers_campaign_id'))
+
     op.drop_table('identified_answers')
     op.drop_table('follow_up_requests')
     with op.batch_alter_table('consents', schema=None) as batch_op:
@@ -213,12 +244,22 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f('ix_consents_campaign_id'))
 
     op.drop_table('consents')
+    with op.batch_alter_table('anonymous_answers', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_anonymous_answers_org_id'))
+        batch_op.drop_index(batch_op.f('ix_anonymous_answers_campaign_id'))
+
     op.drop_table('anonymous_answers')
     with op.batch_alter_table('campaigns', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_campaigns_org_id'))
 
     op.drop_table('campaigns')
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_users_org_id'))
+
     op.drop_table('users')
+    with op.batch_alter_table('use_cases', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_use_cases_org_id'))
+
     op.drop_table('use_cases')
     with op.batch_alter_table('participants', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_participants_org_id'))

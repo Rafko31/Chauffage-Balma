@@ -36,6 +36,9 @@ class AnalyticsService:
                 "data": {}
             }
 
+        # Privacy Guard: Check for filter combinations that might re-identify
+        # In a real system, we would analyze the diversity of metadata in the results
+
         # Real aggregation logic for scores and adoption states
         avg_scores = db.query(
             func.avg(AnonymousAnswer.computed_scores['maturity'].as_float()).label('maturity'),
@@ -71,6 +74,39 @@ class AnalyticsService:
         campaign_ids: List[int]
     ) -> Dict[str, Any]:
         """Calculates movements on the adoption curve between campaigns."""
-        # This would compare distribution shifts between campaigns
-        # Simplified for MVP
-        return {"trend": "improving", "details": "Movement from Exploration to Experimentation detected"}
+        if len(campaign_ids) < 2:
+            return {"status": "insufficient_data"}
+
+        # Get distribution for each campaign
+        campaign_results = []
+        for cid in campaign_ids:
+            res = AnalyticsService.get_aggregated_results(db, org_id, cid)
+            if res["status"] == "success":
+                campaign_results.append({
+                    "campaign_id": cid,
+                    "distribution": res["data"]["adoption_distribution"],
+                    "averages": {
+                        "maturity": res["data"]["maturity_avg"],
+                        "sentiment": res["data"]["sentiment_avg"],
+                        "activation": res["data"]["activation_avg"]
+                    }
+                })
+
+        if len(campaign_results) < 2:
+            return {"status": "insufficient_successful_results"}
+
+        # Compare the two latest campaigns
+        latest = campaign_results[-1]
+        previous = campaign_results[-2]
+
+        diffs = {
+            "maturity": latest["averages"]["maturity"] - previous["averages"]["maturity"],
+            "sentiment": latest["averages"]["sentiment"] - previous["averages"]["sentiment"],
+            "activation": latest["averages"]["activation"] - previous["averages"]["activation"]
+        }
+
+        return {
+            "status": "success",
+            "diffs": diffs,
+            "trend": "improving" if sum(diffs.values()) > 0 else "stagnating_or_declining"
+        }

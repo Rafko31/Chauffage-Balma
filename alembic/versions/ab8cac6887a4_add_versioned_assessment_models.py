@@ -1,8 +1,8 @@
-"""Initial migration
+"""Add versioned assessment models
 
-Revision ID: bef0e6a9fe5f
-Revises: 45f0672b637a
-Create Date: 2026-07-02 12:44:58.507899
+Revision ID: ab8cac6887a4
+Revises: 356e9fbd216d
+Create Date: 2026-07-02 13:33:48.138100
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'bef0e6a9fe5f'
-down_revision: Union[str, Sequence[str], None] = '45f0672b637a'
+revision: str = 'ab8cac6887a4'
+down_revision: Union[str, Sequence[str], None] = '356e9fbd216d'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

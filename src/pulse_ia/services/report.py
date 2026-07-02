@@ -25,6 +25,10 @@ class RecommendationService:
 class ReportService:
     @staticmethod
     def create_draft(db: Session, org_id: int, campaign_id: int) -> Report:
+        campaign = db.get(Campaign, campaign_id)
+        if not campaign or campaign.org_id != org_id:
+            raise ValueError("Campaign not found or access denied")
+
         # 1. Fetch data
         results = AnalyticsService.get_aggregated_results(db, org_id, campaign_id)
 
@@ -42,6 +46,7 @@ class ReportService:
         report = Report(
             org_id=org_id,
             campaign_id=campaign_id,
+            assessment_version_id=campaign.assessment_version_id,
             status=ReportStatus.BROUILLON,
             content=content,
             version="1.0"
@@ -52,14 +57,42 @@ class ReportService:
         return report
 
     @staticmethod
-    def publish_report(db: Session, report_id: int, user_id: int) -> Report:
+    def transition_to_review(db: Session, report_id: int, org_id: int) -> Report:
         report = db.get(Report, report_id)
-        if report:
-            report.status = ReportStatus.PUBLIE
-            report.approved_by_id = user_id
-            report.published_at = datetime.now(UTC)
-            db.commit()
-            db.refresh(report)
+        if not report or report.org_id != org_id:
+            raise ValueError("Report not found or access denied")
+        if report.status != ReportStatus.BROUILLON:
+            raise ValueError("Only Brouillon can be sent to review")
+        report.status = ReportStatus.EN_REVISION
+        db.commit()
+        return report
+
+    @staticmethod
+    def approve_report(db: Session, report_id: int, org_id: int) -> Report:
+        report = db.get(Report, report_id)
+        if not report or report.org_id != org_id:
+            raise ValueError("Report not found or access denied")
+        if report.status != ReportStatus.EN_REVISION:
+            raise ValueError("Only reports En révision can be approved")
+        report.status = ReportStatus.APPROUVE
+        db.commit()
+        return report
+
+    @staticmethod
+    def publish_report(db: Session, report_id: int, org_id: int, user_id: int) -> Report:
+        report = db.get(Report, report_id)
+        if not report or report.org_id != org_id:
+            raise ValueError("Report not found or access denied")
+        if report.status != ReportStatus.APPROUVE:
+            raise ValueError("Only approved reports can be published")
+
+        # Snapshot is already partially done in create_draft/update_decisions
+        # For full immuability, we ensure status is PUBLIE and timestamped
+        report.status = ReportStatus.PUBLIE
+        report.approved_by_id = user_id
+        report.published_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(report)
         return report
 
     @staticmethod

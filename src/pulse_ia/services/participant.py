@@ -9,6 +9,7 @@ from src.pulse_ia.schemas.participant import ParticipantMapping, ImportResult
 class ParticipantService:
     @staticmethod
     def import_from_csv(db: Session, org_id: int, csv_content: str, mapping: Dict[str, str]) -> ImportResult:
+        # org_id must be provided by the security context, never by user input
         f = io.StringIO(csv_content)
         reader = csv.DictReader(f)
 

@@ -1,15 +1,24 @@
 import os
+import hashlib
+import sys
+import traceback
+from datetime import datetime, timedelta, UTC
 from sqlalchemy.orm import Session
-from src.pulse_ia.models.base import Organization, User, UserRole, Campaign, Participant, UseCase, UsageStatus, AssessmentTemplate, AssessmentVersion, ReportStatus, Report
+from src.pulse_ia.models.base import (
+    Organization, User, UserRole, Campaign, Participant,
+    UseCase, UsageStatus, AssessmentTemplate, AssessmentVersion,
+    ReportStatus, Report, ParticipationStatus
+)
 from src.pulse_ia.services.participant import ParticipantService
 from src.pulse_ia.services.survey import SurveyService
 from src.pulse_ia.services.use_case import UseCaseService
 from src.pulse_ia.services.report import ReportService
 from src.pulse_ia.services.pdf import run_export_sync
 from src.pulse_ia.core.db import SessionLocal
-from datetime import datetime, timedelta, UTC
+from src.pulse_ia.core.config import settings
+from src.pulse_ia.core.security import get_password_hash
 
-def seed_demo_data():
+def seed_demo_data(skip_pdf: bool = False):
     db = SessionLocal()
     try:
         # 1. Organization
@@ -24,7 +33,6 @@ def seed_demo_data():
             db.refresh(org)
 
         # 2. Users
-        from src.pulse_ia.core.security import get_password_hash
         admin = db.query(User).filter_by(email="admin@manufacture.ia").first()
         if not admin:
             admin = User(
@@ -67,8 +75,8 @@ def seed_demo_data():
                 version="v1.0",
                 structure={"questions": [{"id": "confidence", "text": "Confiance"}, {"id": "usage_frequency", "text": "Fréquence"}]},
                 scoring_rules=scoring_rules,
-                adoption_rules={}, # Added to match schema
-                recommendation_library={}, # Added to match schema
+                adoption_rules={"states": {"Exposition": {"confidence": 0}}}, # Simple rule for demo
+                recommendation_library={},
                 is_frozen=True
             )
             db.add(version)
@@ -104,7 +112,6 @@ EMP005,eve@manufacture.ia,Production,Chef d'équipe
         participants = db.query(Participant).filter(Participant.org_id == org.id).all()
 
         # Mix of identified and anonymous answers
-        # Check participation first for idempotency
         salt = settings.get_secret_key
         for p in participants:
             participant_hash = hashlib.sha256(f"{campaign.id}:{p.id}:{campaign.hash_salt}:{salt}".encode()).hexdigest()
@@ -152,42 +159,43 @@ EMP005,eve@manufacture.ia,Production,Chef d'équipe
             ReportService.publish_report(db, report.id, org.id, admin.id)
             db.refresh(report)
 
-        artifacts_dir = os.getenv("ARTIFACTS_DIR", "./artifacts")
-        os.makedirs(artifacts_dir, exist_ok=True)
-        pdf_path_dir = os.path.join(artifacts_dir, "manufacture_innovante_direction_q1.pdf")
-        pdf_path_ca = os.path.join(artifacts_dir, "manufacture_innovante_ca_q1.pdf")
+        if not skip_pdf:
+            artifacts_dir = settings.ARTIFACTS_DIR
+            os.makedirs(artifacts_dir, exist_ok=True)
+            pdf_path_dir = os.path.abspath(os.path.join(artifacts_dir, "manufacture_innovante_direction_q1.pdf"))
+            pdf_path_ca = os.path.abspath(os.path.join(artifacts_dir, "manufacture_innovante_ca_q1.pdf"))
 
-        # Prepare data for rendering (convert model to dict with relationships)
-        report_data = {
-            "id": report.id,
-            "campaign_title": campaign.title,
-            "content": report.content,
-            "methodology": report.methodology_snapshot,
-            "report_version": report.report_version
-        }
+            report_data = {
+                "id": report.id,
+                "campaign_title": campaign.title,
+                "content": report.content,
+                "methodology_snapshot": report.methodology_snapshot,
+                "report_version": report.report_version
+            }
 
-        try:
+            # PDF generation is mandatory in demo mode (skip_pdf=False)
             run_export_sync(report_data, pdf_path_dir, template_name="direction_report")
             run_export_sync(report_data, pdf_path_ca, template_name="ca_report")
-            print(f"Demo data seeded successfully.")
+
+            # Validation
+            for p in [pdf_path_dir, pdf_path_ca]:
+                if not os.path.exists(p):
+                    raise RuntimeError(f"Failed to generate PDF at {p}")
+                with open(p, "rb") as f:
+                    if f.read(4) != b"%PDF":
+                        raise RuntimeError(f"Generated file {p} is not a valid PDF")
+
             print(f"Rapport Direction généré : {pdf_path_dir}")
             print(f"Rapport CA généré : {pdf_path_ca}")
-        except Exception as e:
-            print(f"Warning: PDF generation failed (likely missing playwright): {e}")
-            print(f"Demo data seeded successfully (without PDFs).")
+
+        print("Demo data seeded successfully.")
 
     finally:
         db.close()
 
 if __name__ == "__main__":
-    import sys
-    import hashlib
-    from src.pulse_ia.models.base import ParticipationStatus
-    from src.pulse_ia.core.config import settings
     try:
         seed_demo_data()
     except Exception as e:
-        import traceback
         traceback.print_exc()
-        print(f"Error seeding demo data: {e}", file=sys.stderr)
         sys.exit(1)

@@ -26,6 +26,7 @@ def get_current_user(
         raise credentials_exception
     user = db.get(User, int(user_id))
     if user is None:
+        print(f"DEBUG: User {user_id} not found in DB")
         raise credentials_exception
     return user
 

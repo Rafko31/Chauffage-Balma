@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.orm import Session
 from src.pulse_ia.models.base import Organization, Participant, Campaign, AnonymousAnswer, AssessmentTemplate, AssessmentVersion
 from src.pulse_ia.services.analytics import AnalyticsService
-from src.pulse_ia.tests.test_security import db_session, engine
+
 from datetime import datetime, UTC
 
 def test_anonymity_threshold_respected(db_session: Session):

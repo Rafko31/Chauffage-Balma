@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from src.pulse_ia.models.base import Organization, Participant, Campaign, AnonymousAnswer, IdentifiedAnswer, ParticipationStatus, FollowUpRequest, AssessmentTemplate, AssessmentVersion
 from src.pulse_ia.services.survey import SurveyService
-from src.pulse_ia.tests.test_security import db_session, engine
+
 from datetime import datetime, UTC
 
 def test_anonymous_submission_decoupled(db_session: Session):

@@ -4,12 +4,10 @@ from sqlalchemy.orm import Session
 from src.pulse_ia.models.base import Organization, User, UserRole, Participant, Campaign, AssessmentTemplate, AssessmentVersion
 from src.pulse_ia.core import security
 from src.pulse_ia.main import app
-from src.pulse_ia.tests.test_security import db_session, engine
+
 from datetime import datetime, UTC
 
-def test_api_cross_tenant_prevention(db_session: Session):
-    client = TestClient(app)
-
+def test_api_cross_tenant_prevention(client, db_session: Session):
     # 1. Setup two organizations
     org1 = Organization(name="Org 1")
     org2 = Organization(name="Org 2")
@@ -25,6 +23,7 @@ def test_api_cross_tenant_prevention(db_session: Session):
     )
     db_session.add(user1)
     db_session.commit()
+    db_session.refresh(user1)
 
     # 3. Setup campaign for Org 2
     template = AssessmentTemplate(title="T")
@@ -45,9 +44,14 @@ def test_api_cross_tenant_prevention(db_session: Session):
     token = security.create_access_token({"sub": str(user1.id)})
     headers = {"Authorization": f"Bearer {token}"}
 
+    # Add dummy participant to Org 1 for id 1
+    p1 = Participant(org_id=org1.id, external_id="P1")
+    db_session.add(p1)
+    db_session.commit()
+
     # 5. Try to submit survey for Org 2's campaign
     response = client.post(
-        f"/api/v1/surveys/submit?campaign_id={campaign2.id}&participant_id=1&is_anonymous=true&consent_given=true",
+        f"/api/v1/surveys/submit?campaign_id={campaign2.id}&participant_id={p1.id}&is_anonymous=true&consent_given=true",
         json={"q1": 1},
         headers=headers
     )

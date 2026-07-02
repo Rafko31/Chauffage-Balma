@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.orm import Session
 from src.pulse_ia.models.base import Organization, UseCase, UsageStatus
 from src.pulse_ia.services.use_case import UseCaseService
-from src.pulse_ia.tests.test_security import db_session, engine
+
 
 def test_use_case_lifecycle(db_session: Session):
     org = Organization(name="Use Case Org")

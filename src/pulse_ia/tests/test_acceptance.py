@@ -4,7 +4,7 @@ from sqlalchemy import select
 from src.pulse_ia.models.base import Organization, User, UserRole, Participant, Campaign, Report, ReportStatus, AssessmentTemplate, AssessmentVersion
 from src.pulse_ia.services.report import ReportService
 from src.pulse_ia.services.analytics import AnalyticsService
-from src.pulse_ia.tests.test_security import db_session, engine
+
 from datetime import datetime, UTC
 
 def test_full_business_workflow(db_session: Session):

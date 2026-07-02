@@ -9,7 +9,7 @@ def test_seed_idempotency():
     db = SessionLocal()
 
     # 1. First Seed
-    seed_demo_data()
+    seed_demo_data(skip_pdf=True)
 
     counts = {
         "orgs": db.query(Organization).count(),
@@ -23,7 +23,7 @@ def test_seed_idempotency():
     }
 
     # 2. Second Seed
-    seed_demo_data()
+    seed_demo_data(skip_pdf=True)
 
     new_counts = {
         "orgs": db.query(Organization).count(),

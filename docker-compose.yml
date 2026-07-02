@@ -4,9 +4,9 @@ services:
   db:
     image: postgres:15
     environment:
-      - POSTGRES_USER=\${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=\${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=\${POSTGRES_DB:-pulse_ia}
+      POSTGRES_USER: \${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: \${POSTGRES_DB:-pulse_ia}
     ports:
       - "5432:5432"
     healthcheck:
@@ -20,9 +20,9 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://\${POSTGRES_USER:-postgres}:\${POSTGRES_PASSWORD:-postgres}@db:5432/\${POSTGRES_DB:-pulse_ia}
-      - ARTIFACTS_DIR=/app/artifacts
-      - ENV=local
+      DATABASE_URL: postgresql://\${POSTGRES_USER:-postgres}:\${POSTGRES_PASSWORD:-postgres}@db:5432/\${POSTGRES_DB:-pulse_ia}
+      ARTIFACTS_DIR: /app/artifacts
+      ENV: local
     ports:
       - "8000:8000"
     volumes:
@@ -31,7 +31,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready"]
       interval: 10s
       timeout: 5s
       retries: 5

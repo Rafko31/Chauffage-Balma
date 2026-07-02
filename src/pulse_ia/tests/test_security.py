@@ -1,38 +1,6 @@
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
-from src.pulse_ia.models.base import Base, Organization, User, UserRole, Participant
-from src.pulse_ia.core.db import get_db
-from src.pulse_ia.main import app
-
-# Setup test database
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-def override_get_db():
-    try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
-
-app.dependency_overrides[get_db] = override_get_db
-
-@pytest.fixture(scope="module")
-def client():
-    Base.metadata.create_all(bind=engine)
-    yield TestClient(app)
-    Base.metadata.drop_all(bind=engine)
-
-@pytest.fixture
-def db_session():
-    Base.metadata.create_all(bind=engine)
-    session = TestingSessionLocal()
-    yield session
-    session.close()
-    Base.metadata.drop_all(bind=engine)
+from sqlalchemy import select
+from src.pulse_ia.models.base import Organization, User, UserRole, Participant
 
 def test_tenant_isolation(db_session):
     # Create two organizations
@@ -62,7 +30,6 @@ def test_inter_tenant_access_denied(db_session):
     db_session.commit()
 
     # User in Org 1 tries to access p2
-    # In a real service call, we'd use SecurityContext.org_id
     org1_id = org1.id
 
     # Simulate a service call that enforces org_id
@@ -72,6 +39,9 @@ def test_inter_tenant_access_denied(db_session):
 
     assert p is None
 
-def test_anonymity_logic(db_session):
-    # This will be expanded as we implement the service layer
-    pass
+def test_db_type(db_session):
+    """Assertion demandée : vérifier le dialecte si Postgres."""
+    import os
+    database_url = os.getenv("DATABASE_URL", "")
+    if "postgresql" in database_url:
+        assert db_session.bind.dialect.name == "postgresql"

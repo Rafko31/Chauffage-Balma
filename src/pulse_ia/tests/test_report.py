@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy.orm import Session
 from src.pulse_ia.models.base import Organization, Campaign, AnonymousAnswer, Report, ReportStatus, User, UserRole, AssessmentTemplate, AssessmentVersion
 from src.pulse_ia.services.report import ReportService
-from src.pulse_ia.tests.test_security import db_session, engine
+
 from datetime import datetime, UTC
 
 def test_report_workflow(db_session: Session):

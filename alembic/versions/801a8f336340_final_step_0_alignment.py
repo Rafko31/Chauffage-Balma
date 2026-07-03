@@ -1,8 +1,8 @@
-"""Reset and align schema v3
+"""Final Step 0 alignment
 
-Revision ID: db969978bedf
+Revision ID: 801a8f336340
 Revises:
-Create Date: 2026-07-02 15:50:33.218463
+Create Date: 2026-07-03 03:28:42.578789
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'db969978bedf'
+revision: str = '801a8f336340'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

@@ -4,12 +4,23 @@ from src.pulse_ia.models.base import Organization, User, Participant, Campaign, 
 from src.pulse_ia.scripts.seed_demo import seed_demo_data
 from src.pulse_ia.core.db import SessionLocal
 
-def test_seed_idempotency():
+def test_seed_full_and_idempotent():
     # This test should run on a clean DB (migrate already done by Makefile)
     db = SessionLocal()
 
-    # 1. First Seed
-    seed_demo_data(skip_pdf=True)
+    # 1. First Seed (Full with PDF)
+    # Note: Inside Docker api container, playwright is available
+    seed_demo_data(skip_pdf=False)
+
+    # Check PDF integrity
+    artifacts_dir = settings.ARTIFACTS_DIR
+    pdf_dir = os.path.join(artifacts_dir, "manufacture_innovante_direction_q1.pdf")
+    pdf_ca = os.path.join(artifacts_dir, "manufacture_innovante_ca_q1.pdf")
+
+    for p in [pdf_dir, pdf_ca]:
+        assert os.path.exists(p)
+        with open(p, "rb") as f:
+            assert f.read(4) == b"%PDF"
 
     counts = {
         "orgs": db.query(Organization).count(),

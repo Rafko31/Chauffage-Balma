@@ -2,54 +2,56 @@
 
 SHELL := /bin/bash
 
-# Configuration
-ENV_FILE ?= .env
-include $(ENV_FILE)
-export $(shell sed 's/=.*//' $(ENV_FILE))
-
 setup:
 	@echo "Local setup (requires Python 3.12)"
 	pip install -r requirements.txt
 	playwright install --with-deps chromium
 
 up:
+	@if [ ! -f .env ]; then cp .env.example .env; fi
 	docker compose up -d
 
 down:
 	docker compose down
 
 migrate:
-	docker compose exec api alembic upgrade head
+	docker compose run --rm api alembic upgrade head
 
 seed:
-	docker compose exec api python -m src.pulse_ia.scripts.seed_demo
+	docker compose run --rm api python -m src.pulse_ia.scripts.seed_demo
 
 test-unit:
 	@echo "Running unit tests (SQLite)..."
 	DATABASE_URL=sqlite:///./test_unit.db python -m pytest src/pulse_ia/tests/test_survey.py src/pulse_ia/tests/test_analytics.py
 	@rm -f test_unit.db
 
-test-integration: clean-test-db
-	@echo "Starting ephemeral PostgreSQL for integration tests..."
-	docker run --name pulse_ia_test_pg -e POSTGRES_PASSWORD=postgres -p 5433:5432 -d postgres:15
+test-integration: clean
+	@if [ ! -f .env ]; then cp .env.example .env; fi
+	@echo "Starting ephemeral infrastructure for integration tests..."
+	docker compose up -d db
 	@echo "Waiting for PostgreSQL to be ready..."
-	@until docker exec pulse_ia_test_pg pg_isready -U postgres; do sleep 1; done
-	@echo "Running migrations against PostgreSQL..."
-	DATABASE_URL=postgresql://postgres:postgres@localhost:5433/postgres alembic upgrade head
-	@echo "Checking schema alignment..."
-	DATABASE_URL=postgresql://postgres:postgres@localhost:5433/postgres alembic check
-	@echo "Running integration tests..."
-	DATABASE_URL=postgresql://postgres:postgres@localhost:5433/postgres python -m pytest src/pulse_ia/tests/
-	@echo "Cleaning up PostgreSQL..."
-	@docker stop pulse_ia_test_pg && docker rm pulse_ia_test_pg
+	@until docker compose exec db pg_isready -U postgres; do sleep 1; done
+	@echo "Running migrations and tests inside the API container..."
+	docker compose run --rm \
+		-e DATABASE_URL=postgresql://postgres:postgres@db:5432/pulse_ia \
+		api \
+		sh -c "alembic upgrade head && alembic check && pytest src/pulse_ia/tests/"
+	@echo "Cleaning up..."
+	docker compose down -v --remove-orphans
 
 demo: clean
 	@if [ ! -f .env ]; then cp .env.example .env; fi
-	docker compose up -d --build
+	docker compose up -d db
+	@echo "Waiting for database..."
+	@until docker compose exec db pg_isready -U postgres; do sleep 1; done
+	@echo "Running migrations..."
+	docker compose run --rm api alembic upgrade head
+	@echo "Running seed..."
+	docker compose run --rm api python -m src.pulse_ia.scripts.seed_demo
+	@echo "Starting API..."
+	docker compose up -d api
 	@echo "Waiting for API to be ready..."
 	@until curl -s -f http://localhost:8000/ready > /dev/null; do sleep 1; done
-	@echo "API is ready. Generating demonstration reports..."
-	docker compose exec api python -m src.pulse_ia.scripts.seed_demo
 	@echo "Checking artifacts..."
 	@if [ -f artifacts/manufacture_innovante_direction_q1.pdf ] && [ -f artifacts/manufacture_innovante_ca_q1.pdf ]; then \
 		echo "Success: Reports generated in ./artifacts/"; \
@@ -63,7 +65,3 @@ clean:
 	rm -f *.db temp.db test_unit.db test_integration.db
 	rm -rf artifacts/*.pdf
 	find . -type d -name "__pycache__" -exec rm -rf {} +
-
-clean-test-db:
-	@docker stop pulse_ia_test_pg >/dev/null 2>&1 || true
-	@docker rm pulse_ia_test_pg >/dev/null 2>&1 || true

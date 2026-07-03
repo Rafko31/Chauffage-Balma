@@ -40,8 +40,5 @@ def test_inter_tenant_access_denied(db_session):
     assert p is None
 
 def test_db_type(db_session):
-    """Assertion demandée : vérifier le dialecte si Postgres."""
-    import os
-    database_url = os.getenv("DATABASE_URL", "")
-    if "postgresql" in database_url:
-        assert db_session.bind.dialect.name == "postgresql"
+    """Assertion demandée : vérifier le dialecte Postgres."""
+    assert db_session.bind.dialect.name == "postgresql"

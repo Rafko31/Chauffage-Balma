@@ -1,0 +1,39 @@
+<html>
+<head>
+    <style>
+        @page { margin: 2cm; }
+        body { font-family: 'Georgia', serif; line-height: 1.4; color: #2c3e50; }
+        .page { page-break-after: always; display: flex; flex-direction: column; }
+        .cover { text-align: center; border: 10px double #2c3e50; padding: 50px; margin: 20px; }
+        .executive-summary { font-style: italic; font-size: 18px; color: #34495e; margin: 40px 0; }
+        h1 { font-size: 28px; border-bottom: 1px solid #2c3e50; }
+        .footer { font-size: 9px; text-align: right; margin-top: auto; color: #95a5a6; }
+    </style>
+</head>
+<body>
+    <div class="page cover">
+        <h1>Note de Synthèse Stratégique IA</h1>
+        <h2>Conseil d'Administration</h2>
+        <p>Manufacture Innovante Inc.</p>
+        <p>{{ now }}</p>
+    </div>
+
+    <div class="page">
+        <h1>Trajectoire d'Adoption</h1>
+        <div class="executive-summary">{{ content.executive_summary }}</div>
+
+        <h3>Indicateurs Clés de Gouvernance</h3>
+        <p>Maturité Globale : <strong>{{ "%.2f"|format(content.results.maturity_avg) }}</strong> / 1.0</p>
+        <p>Niveau de Risque Humain (Sentiment) : <strong>{{ "%.2f"|format(content.results.sentiment_avg) }}</strong></p>
+
+        <h3>Décisions de Gouvernance Attendues</h3>
+        <ul>
+            {% for dec in content.decisions %}
+            <li><strong>{{ dec.action }}</strong> - {{ dec.owner }}</li>
+            {% endfor %}
+        </ul>
+
+        <div class="footer">ID Rapport : {{ id }} | Version Methodologie : {{ methodology.version }}</div>
+    </div>
+</body>
+</html>
